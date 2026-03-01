@@ -286,6 +286,7 @@ class WebServer(BaseHTTPRequestHandler):
     """HTTP server to handle web interface requests"""
 
     fixer = None
+    offline_updates_data = None
 
     def do_GET(self):
         """Handle GET requests"""
@@ -299,6 +300,8 @@ class WebServer(BaseHTTPRequestHandler):
                 self.serve_decks()
             elif path == "/api/status":
                 self.serve_status()
+            elif path == "/api/offline_updates":
+                self.handle_offline_updates()
             else:
                 self.send_error(404)
         except Exception as e:
@@ -368,6 +371,7 @@ class WebServer(BaseHTTPRequestHandler):
             "claude_api": bool(os.getenv("ANTHROPIC_API_KEY")),
             "forvo_api": bool(os.getenv("FORVO_API_KEY")),
             "anki_connected": False,
+            "offline_mode": self.offline_updates_data is not None,
         }
 
         # Test Anki connection
@@ -381,6 +385,66 @@ class WebServer(BaseHTTPRequestHandler):
             print(f"Anki connection failed: {e}")
 
         self.send_json_response(response)
+
+    def handle_offline_updates(self):
+        """Return offline_updates formatted for the web review interface"""
+        try:
+            token_usage = (
+                self.fixer.processor.get_token_usage_snapshot()
+                if self.fixer and self.fixer.processor
+                else {
+                    "request_input_tokens": 0,
+                    "request_output_tokens": 0,
+                    "session_input_tokens": 0,
+                    "session_output_tokens": 0,
+                }
+            )
+
+            if not self.offline_updates_data:
+                self.send_json_response({
+                    "processed_count": 0,
+                    "processed_cards": [],
+                    "full_log": "(offline updates)",
+                    "skipped_cards": [],
+                    "token_usage": token_usage,
+                })
+                return
+
+            if not self.fixer:
+                raise Exception("Fixer not initialized")
+
+            # Fetch original fields from Anki for each note
+            note_ids = [u["note_id"] for u in self.offline_updates_data]
+            notes_info = self.fixer.anki.get_note_info(note_ids)
+            notes_by_id = {n["noteId"]: n for n in notes_info}
+
+            processed_cards = []
+            for update in self.offline_updates_data:
+                note_id = update["note_id"]
+                updated_fields = update["updated_fields"]
+                note_info = notes_by_id.get(note_id, {})
+                original_fields = note_info.get("fields", {})
+
+                processed_cards.append({
+                    "note_id": note_id,
+                    "updated_fields": updated_fields,
+                    "original_fields": original_fields,
+                    "model_name": note_info.get("modelName", "Basic"),
+                    "tags": note_info.get("tags", []),
+                })
+
+            self.send_json_response({
+                "processed_count": len(processed_cards),
+                "processed_cards": processed_cards,
+                "full_log": "(offline updates)",
+                "skipped_cards": [],
+                "token_usage": token_usage,
+            })
+
+        except Exception as e:
+            print(f"Error in handle_offline_updates: {e}")
+            traceback.print_exc()
+            self.send_json_error(500, str(e))
 
     def handle_process_request(self, data):
         """Handle card processing request"""
@@ -463,7 +527,7 @@ class WebServer(BaseHTTPRequestHandler):
                 }
             }
 
-            processed_cards, raw_response = self.fixer.processor.process_card_batch(
+            processed_cards, raw_response, token_usage = self.fixer.processor.process_card_batch(
                 [fake_card], additional_info=additional_info
             )
 
@@ -471,9 +535,13 @@ class WebServer(BaseHTTPRequestHandler):
                 result = {
                     "processed_card": processed_cards[0],
                     "raw_response": raw_response,
+                    "token_usage": token_usage,
                 }
             else:
-                result = {"error": "No card returned from processing"}
+                result = {
+                    "error": "No card returned from processing",
+                    "token_usage": token_usage,
+                }
 
             self.send_json_response(result)
 
@@ -646,6 +714,10 @@ class WebServer(BaseHTTPRequestHandler):
         .card-loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; border-radius: 12px; }
         .card-loading-overlay .processing-spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         .card-loading-overlay p { color: #495057; font-size: 14px; font-weight: 500; }
+        .token-usage-footer { margin-top: 24px; padding: 12px 16px; border: 1px solid #d9dee3; border-radius: 10px; background: #f8f9fb; color: #334155; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+        .token-usage-group { display: flex; gap: 8px; align-items: center; }
+        .token-usage-label { font-weight: 600; color: #475569; }
+        .token-usage-values { font-family: 'Consolas', 'Monaco', monospace; }
     </style>
 </head>
 <body>
@@ -741,6 +813,17 @@ class WebServer(BaseHTTPRequestHandler):
                     <pre id="rawClaudeOutput" style="background: white; border: 1px solid #ddd; border-radius: 4px; padding: 15px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; margin: 0;"></pre>
                 </div>
             </div>
+
+            <div class="token-usage-footer" id="tokenUsageFooter">
+                <div class="token-usage-group">
+                    <span class="token-usage-label">Tokens, last request:</span>
+                    <span class="token-usage-values">In <span id="requestInputTokens">0</span> / Out <span id="requestOutputTokens">0</span></span>
+                </div>
+                <div class="token-usage-group">
+                    <span class="token-usage-label">Session total:</span>
+                    <span class="token-usage-values">In <span id="sessionInputTokens">0</span> / Out <span id="sessionOutputTokens">0</span></span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -749,6 +832,12 @@ class WebServer(BaseHTTPRequestHandler):
         let selectedCards = new Set();
         let skippedCards = [];
         let currentDeckName = '';
+        let tokenUsage = {
+            request_input_tokens: 0,
+            request_output_tokens: 0,
+            session_input_tokens: 0,
+            session_output_tokens: 0
+        };
 
         document.addEventListener('DOMContentLoaded', function() {
             checkServerStatus();
@@ -771,11 +860,36 @@ class WebServer(BaseHTTPRequestHandler):
                     indicator.textContent = 'Disconnected';
                     indicator.className = 'status-indicator status-disconnected';
                 }
+
+                if (status.offline_mode) {
+                    console.log("Offline mode detected, loading offline updates...");
+                    indicator.textContent = 'Offline Mode';
+                    indicator.className = 'status-indicator status-connected';
+                    await loadOfflineUpdates();
+                }
             } catch (error) {
                 console.error('Error checking status:', error);
                 const indicator = document.getElementById('statusIndicator');
                 indicator.textContent = 'Error';
                 indicator.className = 'status-indicator status-disconnected';
+            }
+        }
+
+        async function loadOfflineUpdates() {
+            showProcessing('Loading offline updates...');
+            try {
+                const response = await fetch('/api/offline_updates');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                const data = await response.json();
+                loadCardData(data);
+                hideProcessing();
+                showResults();
+            } catch (error) {
+                console.error('Error loading offline updates:', error);
+                alert('Error loading offline updates: ' + error.message);
+                hideProcessing();
             }
         }
 
@@ -942,6 +1056,7 @@ class WebServer(BaseHTTPRequestHandler):
             cardData = data.processed_cards || [];
             full_log = data.full_log || '';
             skippedCards = data.skipped_cards || [];
+            updateTokenUsage(data.token_usage || null);
             selectedCards.clear();
             cardData.forEach((_, index) => {
                 selectedCards.add(index);
@@ -953,6 +1068,25 @@ class WebServer(BaseHTTPRequestHandler):
             // Show debug section and populate raw output
             document.getElementById('debugSection').style.display = 'block';
             document.getElementById('rawClaudeOutput').textContent = full_log;
+        }
+
+        function updateTokenUsage(newUsage) {
+            if (newUsage && typeof newUsage === 'object') {
+                tokenUsage.request_input_tokens = Number(newUsage.request_input_tokens) || 0;
+                tokenUsage.request_output_tokens = Number(newUsage.request_output_tokens) || 0;
+
+                if (newUsage.session_input_tokens != null) {
+                    tokenUsage.session_input_tokens = Number(newUsage.session_input_tokens) || 0;
+                }
+                if (newUsage.session_output_tokens != null) {
+                    tokenUsage.session_output_tokens = Number(newUsage.session_output_tokens) || 0;
+                }
+            }
+
+            document.getElementById('requestInputTokens').textContent = tokenUsage.request_input_tokens;
+            document.getElementById('requestOutputTokens').textContent = tokenUsage.request_output_tokens;
+            document.getElementById('sessionInputTokens').textContent = tokenUsage.session_input_tokens;
+            document.getElementById('sessionOutputTokens').textContent = tokenUsage.session_output_tokens;
         }
 
         function renderCards() {
@@ -1494,6 +1628,8 @@ class WebServer(BaseHTTPRequestHandler):
                     throw new Error(result.error);
                 }
 
+                updateTokenUsage(result.token_usage || null);
+
                 // Update the card data in place, preserving original_fields
                 const newCard = result.processed_card;
                 newCard.original_fields = card.original_fields;
@@ -1527,9 +1663,10 @@ class WebServer(BaseHTTPRequestHandler):
 </html>"""
 
 
-def start_web_server(fixer, port: int = 8080):
+def start_web_server(fixer, port: int = 8080, offline_updates_data=None):
     """Start the web server"""
     WebServer.fixer = fixer
+    WebServer.offline_updates_data = offline_updates_data
 
     server = HTTPServer(("localhost", port), WebServer)
 
@@ -1642,8 +1779,21 @@ class SwedishCardProcessor:
         self.client = anthropic.Anthropic(api_key=api_key)
         self.forvo = ForvoAPI(forvo_api_key)
         self.anki = anki_connector
+        self.session_input_tokens = 0
+        self.session_output_tokens = 0
 
-    def process_card_batch(self, cards: List[Dict], additional_info: str = "") -> tuple[List[Dict], str]:
+    def _build_token_usage(self, request_input_tokens: int = 0, request_output_tokens: int = 0) -> Dict[str, int]:
+        return {
+            "request_input_tokens": request_input_tokens,
+            "request_output_tokens": request_output_tokens,
+            "session_input_tokens": self.session_input_tokens,
+            "session_output_tokens": self.session_output_tokens,
+        }
+
+    def get_token_usage_snapshot(self) -> Dict[str, int]:
+        return self._build_token_usage()
+
+    def process_card_batch(self, cards: List[Dict], additional_info: str = "") -> tuple[List[Dict], str, Dict[str, int]]:
         """Process a batch of cards using Claude"""
 
         # Prepare card data for Claude
@@ -1662,7 +1812,7 @@ class SwedishCardProcessor:
 
         if len(cards) == 0:
             print("No cards to process")
-            return [], ""
+            return [], "", self._build_token_usage()
 
         # Create prompt for Claude
         prompt = self._create_processing_prompt(card_data, additional_info)
@@ -1675,10 +1825,16 @@ class SwedishCardProcessor:
             system_prompt, user_prompt = prompt
             response = self.client.messages.create(
                 model=MODEL_NAME,
-                max_tokens=4000,
+                max_tokens=6000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
+
+            usage = getattr(response, "usage", None)
+            request_input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+            request_output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+            self.session_input_tokens += request_input_tokens
+            self.session_output_tokens += request_output_tokens
 
             # Store raw response for debugging
             raw_claude_response = response.content[0].text
@@ -1691,12 +1847,16 @@ class SwedishCardProcessor:
             for card in processed_cards:
                 self._add_forvo_audio(card)
 
-            return processed_cards, raw_claude_response
+            return (
+                processed_cards,
+                raw_claude_response,
+                self._build_token_usage(request_input_tokens, request_output_tokens),
+            )
 
         except Exception as e:
             print(f"Error processing batch with Claude: {e}")
             traceback.print_exc()
-            return [], ""
+            return [], "", self._build_token_usage()
 
     def _create_processing_prompt(self, card_data: List[Dict], additional_info: str = "") -> tuple:
         """Create the system and user prompts for Claude to process cards.
@@ -1736,11 +1896,54 @@ Cards to process:
 
         except json.JSONDecodeError as e:
             print(f"Error parsing Claude's response as JSON: {e}")
+            salvaged_cards = self._salvage_processed_cards_from_truncated_json(response_text)
+            if salvaged_cards:
+                print(
+                    f"Recovered {len(salvaged_cards)} intact cards from truncated Claude response"
+                )
+                return salvaged_cards
             print("Raw response:", response_text[:500])
             return []
         except Exception as e:
             print(f"Error processing Claude's response: {e}")
             return []
+
+    def _salvage_processed_cards_from_truncated_json(self, response_text: str) -> List[Dict]:
+        """Best-effort recovery for truncated JSON by keeping only fully decodable card items."""
+        key_idx = response_text.find('"processed_cards"')
+        if key_idx == -1:
+            return []
+
+        array_start = response_text.find("[", key_idx)
+        if array_start == -1:
+            return []
+
+        decoder = json.JSONDecoder()
+        salvaged_cards: List[Dict] = []
+        idx = array_start + 1
+
+        while idx < len(response_text):
+            while idx < len(response_text) and response_text[idx] in " \t\r\n,":
+                idx += 1
+
+            if idx >= len(response_text) or response_text[idx] == "]":
+                break
+
+            try:
+                item, next_idx = decoder.raw_decode(response_text, idx)
+            except json.JSONDecodeError:
+                # Likely hit a truncated final element; keep already-decoded items.
+                break
+
+            if not isinstance(item, dict):
+                # Skip unexpected top-level items, but keep scanning.
+                idx = next_idx
+                continue
+
+            salvaged_cards.append(item)
+            idx = next_idx
+
+        return salvaged_cards
 
     def _add_forvo_audio(self, card: Dict):
         """Add Forvo audio to a card if appropriate"""
@@ -1860,7 +2063,7 @@ class AnkiDeckFixer:
                     enriched_cards.append(card)
 
                 # Process with Claude
-                processed_cards, full_log = self.processor.process_card_batch(
+                processed_cards, full_log, _token_usage = self.processor.process_card_batch(
                     enriched_cards
                 )
 
@@ -2043,6 +2246,8 @@ class AnkiDeckFixer:
                     "processed_count": 0,
                     "processed_cards": [],
                     "full_log": "",
+                    "skipped_cards": skipped_cards,
+                    "token_usage": self.processor.get_token_usage_snapshot(),
                 }
 
             # Sort cards to prioritize important ones
@@ -2068,6 +2273,8 @@ class AnkiDeckFixer:
                 "processed_count": 0,
                 "processed_cards": [],
                 "full_log": "",
+                "skipped_cards": skipped_cards,
+                "token_usage": self.processor.get_token_usage_snapshot(),
             }
 
         # Get card info and handle placeholder cards
@@ -2107,7 +2314,7 @@ class AnkiDeckFixer:
 
         # Process with Claude
         print("Processing with Claude API...")
-        processed_cards, full_log = self.processor.process_card_batch(enriched_cards)
+        processed_cards, full_log, token_usage = self.processor.process_card_batch(enriched_cards)
         print(f"Claude processing complete, got {len(processed_cards)} processed cards")
 
         # Re-attach is_new_card flag for placeholder cards that Claude processed
@@ -2148,6 +2355,7 @@ class AnkiDeckFixer:
             "processed_cards": sanitized_cards,
             "full_log": full_log,
             "skipped_cards": skipped_cards,
+            "token_usage": token_usage,
         }
 
     def apply_selected_changes(self, changes_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -2271,7 +2479,8 @@ def main():
     # Handle web interface
     if args.web:
         try:
-            server = start_web_server(fixer, args.port)
+            offline_data = offline_updates if args.parse_offline_updates else None
+            server = start_web_server(fixer, args.port, offline_updates_data=offline_data)
             print("Press Ctrl+C to stop the server")
 
             # Keep the server running
