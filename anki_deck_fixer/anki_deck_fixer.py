@@ -413,9 +413,14 @@ class WebServer(BaseHTTPRequestHandler):
             if not self.fixer:
                 raise Exception("Fixer not initialized")
 
-            # Fetch original fields from Anki for each note
-            note_ids = [u["note_id"] for u in self.offline_updates_data]
-            notes_info = self.fixer.anki.get_note_info(note_ids)
+            # Fetch original fields from Anki only for existing note IDs.
+            # Placeholder IDs for new cards use the format "new_<word>".
+            note_ids = [
+                u["note_id"]
+                for u in self.offline_updates_data
+                if not (isinstance(u.get("note_id"), str) and u["note_id"].startswith("new_"))
+            ]
+            notes_info = self.fixer.anki.get_note_info(note_ids) if note_ids else []
             notes_by_id = {n["noteId"]: n for n in notes_info}
 
             processed_cards = []
@@ -424,13 +429,15 @@ class WebServer(BaseHTTPRequestHandler):
                 updated_fields = update["updated_fields"]
                 note_info = notes_by_id.get(note_id, {})
                 original_fields = note_info.get("fields", {})
+                is_new_card = isinstance(note_id, str) and note_id.startswith("new_")
 
                 processed_cards.append({
                     "note_id": note_id,
                     "updated_fields": updated_fields,
                     "original_fields": original_fields,
-                    "model_name": note_info.get("modelName", "Basic"),
+                    "model_name": note_info.get("modelName", "Basic (with audio)" if is_new_card else "Basic"),
                     "tags": note_info.get("tags", []),
+                    "is_new_card": is_new_card,
                 })
 
             self.send_json_response({
@@ -2565,7 +2572,18 @@ def main():
 
         if args.parse_offline_updates:
             for update in offline_updates:
-                fixer.anki.request("updateNote", **update)
+                note_id = update.get("note_id")
+                updated_fields = update.get("updated_fields", {})
+
+                if isinstance(note_id, str) and note_id.startswith("new_"):
+                    fixer.anki.add_note(
+                        deck_name,
+                        "Basic (with audio)",
+                        updated_fields,
+                        ["reviewed"],
+                    )
+                else:
+                    fixer.anki.update_note_fields(note_id, updated_fields)
             return
 
         if args.word_list:
