@@ -1009,7 +1009,20 @@ class WebServer(BaseHTTPRequestHandler):
                 return;
             }
 
+            const deckSelect = document.getElementById('deckSelect');
+            if (deckSelect && deckSelect.value) {
+                currentDeckName = deckSelect.value;
+            }
+
             const selectedCardData = Array.from(selectedCards).map(index => cardData[index]);
+            const hasNewCards = selectedCardData.some(card =>
+                card && (card.is_new_card === true || (typeof card.note_id === 'string' && card.note_id.startsWith('new_')))
+            );
+
+            if (hasNewCards && !currentDeckName) {
+                alert('Please select a deck before applying new cards.');
+                return;
+            }
             
             showProcessing('Applying changes...');
 
@@ -1029,6 +1042,16 @@ class WebServer(BaseHTTPRequestHandler):
 
                 const result = await response.json();
                 hideProcessing();
+
+                if ((result.failed_count || 0) > 0) {
+                    const errorDetails = (result.errors || []).join('\\n');
+                    alert(
+                        `Applied ${result.applied_count || 0} card(s), failed ${result.failed_count || 0}.` +
+                        (errorDetails ? `\\n\\n${errorDetails}` : '')
+                    );
+                    return;
+                }
+
                 selectedCards.clear();
                 cardData = [];
                 updateStats();
@@ -2379,6 +2402,9 @@ class AnkiDeckFixer:
 
                 # Check if this is a new card placeholder
                 if card.get("is_new_card", False) and isinstance(note_id, str) and note_id.startswith("new_"):
+                    if not deck_name:
+                        raise Exception("deck_name is required to add new cards")
+
                     # Create new card
                     if updated_fields:
                         for field_name, new_value in updated_fields.items():
