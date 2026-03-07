@@ -37,7 +37,7 @@ import webbrowser
 from urllib.parse import urlparse
 import traceback
 
-MODEL_NAME = "claude-sonnet-4-5-20250929"
+MODEL_NAME = "claude-sonnet-4-6"
 
 class AnkiConnector:
     """Handles communication with Anki through AnkiConnect"""
