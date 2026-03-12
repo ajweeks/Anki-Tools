@@ -634,6 +634,7 @@ class WebServer(BaseHTTPRequestHandler):
         .header h1 { font-size: 2.5rem; margin-bottom: 10px; font-weight: 300; }
         .header p { opacity: 0.9; font-size: 1.1rem; }
         .controls { padding: 20px 30px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .controls-bottom { margin-top: 20px; border: 1px solid #e9ecef; border-radius: 12px; }
         .control-group { display: flex; align-items: center; gap: 15px; }
         .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -790,6 +791,15 @@ class WebServer(BaseHTTPRequestHandler):
 
             <div id="cardContainer" style="display: none;">
                 <!-- Cards will be generated here -->
+            </div>
+
+            <div class="controls controls-bottom" id="bottomControls" style="display: none;">
+                <div class="stats" id="statsDisplayBottom" style="display: none;">
+                    <div class="stat-item"><span>✅</span><span>Selected: <span id="selectedCardsBottom">0</span>/<span id="totalCardsBottom">0</span></span></div>
+                </div>
+                <div class="control-group" id="actionControlsBottom" style="display: none;">
+                    <button class="btn btn-success" onclick="applyChanges()" disabled id="applyBtnBottom">Apply Changes</button>
+                </div>
             </div>
 
             <div class="skipped-cards-warning" id="skippedCardsWarning" style="display: none;">
@@ -1069,6 +1079,7 @@ class WebServer(BaseHTTPRequestHandler):
             document.getElementById('processing').style.display = 'block';
             document.getElementById('cardContainer').style.display = 'none';
             document.getElementById('actionControls').style.display = 'none';
+            document.getElementById('bottomControls').style.display = 'none';
         }
 
         function hideProcessing() {
@@ -1080,6 +1091,9 @@ class WebServer(BaseHTTPRequestHandler):
             document.getElementById('cardContainer').style.display = 'block';
             document.getElementById('actionControls').style.display = 'flex';
             document.getElementById('statsDisplay').style.display = 'flex';
+            document.getElementById('bottomControls').style.display = 'flex';
+            document.getElementById('actionControlsBottom').style.display = 'flex';
+            document.getElementById('statsDisplayBottom').style.display = 'flex';
         }
 
         function loadCardData(data) {
@@ -1476,9 +1490,14 @@ class WebServer(BaseHTTPRequestHandler):
         function updateStats() {
             document.getElementById('totalCards').textContent = cardData.length;
             document.getElementById('selectedCards').textContent = selectedCards.size;
+            document.getElementById('totalCardsBottom').textContent = cardData.length;
+            document.getElementById('selectedCardsBottom').textContent = selectedCards.size;
             
             const applyBtn = document.getElementById('applyBtn');
             applyBtn.disabled = selectedCards.size === 0;
+
+            const applyBtnBottom = document.getElementById('applyBtnBottom');
+            applyBtnBottom.disabled = selectedCards.size === 0;
 
             const selectAllBtn = document.getElementById('selectAllBtn');
             if (selectAllBtn) {
@@ -1823,6 +1842,14 @@ class SwedishCardProcessor:
     def get_token_usage_snapshot(self) -> Dict[str, int]:
         return self._build_token_usage()
 
+    @staticmethod
+    def _normalize_back_field_line_breaks(updated_fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert HTML <br> line breaks in Back field into real newlines for editing."""
+        back_field = updated_fields.get("Back")
+        if isinstance(back_field, str):
+            updated_fields["Back"] = re.sub(r"<br\s*/?>", "\n", back_field, flags=re.IGNORECASE)
+        return updated_fields
+
     def process_card_batch(self, cards: List[Dict], additional_info: str = "") -> tuple[List[Dict], str, Dict[str, int]]:
         """Process a batch of cards using Claude"""
 
@@ -1921,6 +1948,12 @@ Cards to process:
             parsed_response = json.loads(json_str)
 
             processed_cards = parsed_response.get("processed_cards", [])
+            for card in processed_cards:
+                updated_fields = card.get("updated_fields", {})
+                if isinstance(updated_fields, dict):
+                    card["updated_fields"] = self._normalize_back_field_line_breaks(
+                        updated_fields
+                    )
 
             return processed_cards
 
@@ -1928,6 +1961,12 @@ Cards to process:
             print(f"Error parsing Claude's response as JSON: {e}")
             salvaged_cards = self._salvage_processed_cards_from_truncated_json(response_text)
             if salvaged_cards:
+                for card in salvaged_cards:
+                    updated_fields = card.get("updated_fields", {})
+                    if isinstance(updated_fields, dict):
+                        card["updated_fields"] = self._normalize_back_field_line_breaks(
+                            updated_fields
+                        )
                 print(
                     f"Recovered {len(salvaged_cards)} intact cards from truncated Claude response"
                 )
@@ -2399,9 +2438,10 @@ class AnkiDeckFixer:
             try:
                 note_id = card["note_id"]
                 updated_fields = card.get("updated_fields", {})
+                is_new_placeholder = isinstance(note_id, str) and note_id.startswith("new_")
 
                 # Check if this is a new card placeholder
-                if card.get("is_new_card", False) and isinstance(note_id, str) and note_id.startswith("new_"):
+                if is_new_placeholder:
                     if not deck_name:
                         raise Exception("deck_name is required to add new cards")
 
