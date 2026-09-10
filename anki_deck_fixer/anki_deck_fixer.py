@@ -37,7 +37,9 @@ import webbrowser
 from urllib.parse import urlparse
 import traceback
 
-MODEL_NAME = "claude-sonnet-4-6"
+MODEL_NAME = "claude-sonnet-5"
+# Headroom for a full batch of long definitions plus the model's thinking tokens
+MAX_RESPONSE_TOKENS = 32000
 
 class AnkiConnector:
     """Handles communication with Anki through AnkiConnect"""
@@ -970,7 +972,7 @@ class WebServer(BaseHTTPRequestHandler):
 
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 240000); // 240 second timeout
+                const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
                 
                 const response = await fetch('/api/process', {
                     method: 'POST',
@@ -1008,7 +1010,11 @@ class WebServer(BaseHTTPRequestHandler):
                 
             } catch (error) {
                 console.error('Error processing cards:', error);
-                alert('Error processing cards: ' + error.message);
+                if (error.name === 'AbortError') {
+                    alert('Processing timed out after 3 minutes. Try a smaller batch size.');
+                } else {
+                    alert('Error processing cards: ' + error.message);
+                }
                 hideProcessing();
             }
         }
@@ -1843,6 +1849,16 @@ class SwedishCardProcessor:
         return self._build_token_usage()
 
     @staticmethod
+    def _extract_response_text(response) -> str:
+        """Join the text blocks of a response, skipping thinking/tool blocks."""
+        texts = [
+            block.text
+            for block in getattr(response, "content", []) or []
+            if getattr(block, "type", None) == "text" and getattr(block, "text", None)
+        ]
+        return "\n".join(texts)
+
+    @staticmethod
     def _normalize_back_field_line_breaks(updated_fields: Dict[str, Any]) -> Dict[str, Any]:
         """Convert HTML <br> line breaks in Back field into real newlines for editing."""
         back_field = updated_fields.get("Back")
@@ -1869,7 +1885,7 @@ class SwedishCardProcessor:
 
         if len(cards) == 0:
             print("No cards to process")
-            return [], "", self._build_token_usage()
+            return [], "(no cards were sent to the model)", self._build_token_usage()
 
         # Create prompt for Claude
         prompt = self._create_processing_prompt(card_data, additional_info)
@@ -1877,15 +1893,20 @@ class SwedishCardProcessor:
             f"Prompt created, system: {len(prompt[0])} chars, user: {len(prompt[1])} chars for {len(cards)} cards"
         )
 
+        raw_claude_response = ""
+
         try:
             print("Calling Claude API...")
             system_prompt, user_prompt = prompt
-            response = self.client.messages.create(
+            # Streamed so the large max_tokens does not trip the SDK's
+            # non-streaming request timeout
+            with self.client.messages.stream(
                 model=MODEL_NAME,
-                max_tokens=6000,
+                max_tokens=MAX_RESPONSE_TOKENS,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
-            )
+            ) as stream:
+                response = stream.get_final_message()
 
             usage = getattr(response, "usage", None)
             request_input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
@@ -1893,8 +1914,14 @@ class SwedishCardProcessor:
             self.session_input_tokens += request_input_tokens
             self.session_output_tokens += request_output_tokens
 
+            if getattr(response, "stop_reason", None) == "max_tokens":
+                print(
+                    f"WARNING: response hit the {MAX_RESPONSE_TOKENS} token limit and is "
+                    "truncated; try a smaller batch size"
+                )
+
             # Store raw response for debugging
-            raw_claude_response = response.content[0].text
+            raw_claude_response = self._extract_response_text(response)
 
             # Process cards and potentially add audio
             processed_cards = self._parse_claude_response(raw_claude_response)
@@ -1913,7 +1940,10 @@ class SwedishCardProcessor:
         except Exception as e:
             print(f"Error processing batch with Claude: {e}")
             traceback.print_exc()
-            return [], "", self._build_token_usage()
+            error_log = f"ERROR: {type(e).__name__}: {e}\n\n{traceback.format_exc()}"
+            if raw_claude_response:
+                error_log += f"\nPartial model output:\n{raw_claude_response}"
+            return [], error_log, self._build_token_usage()
 
     def _create_processing_prompt(self, card_data: List[Dict], additional_info: str = "") -> tuple:
         """Create the system and user prompts for Claude to process cards.
@@ -2314,7 +2344,7 @@ class AnkiDeckFixer:
                     "start_from": start_from,
                     "processed_count": 0,
                     "processed_cards": [],
-                    "full_log": "",
+                    "full_log": "(no cards matched the current filters)",
                     "skipped_cards": skipped_cards,
                     "token_usage": self.processor.get_token_usage_snapshot(),
                 }
@@ -2341,7 +2371,7 @@ class AnkiDeckFixer:
                 "start_from": start_from,
                 "processed_count": 0,
                 "processed_cards": [],
-                "full_log": "",
+                "full_log": "(no cards left to process after filtering)",
                 "skipped_cards": skipped_cards,
                 "token_usage": self.processor.get_token_usage_snapshot(),
             }
