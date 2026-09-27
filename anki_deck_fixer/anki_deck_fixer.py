@@ -623,111 +623,160 @@ class WebServer(BaseHTTPRequestHandler):
 
     def get_interface_html(self):
         """Get the HTML interface content"""
-        return """<!DOCTYPE html>
+        html = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anki Card Fixer</title>
     <style>
+        :root {
+            --page: #1e2327;
+            --header: #283036;
+            --header-2: #313b42;
+            --surface: #ffffff;
+            --surface-2: #f5f6f3;
+            --surface-3: #eaece7;
+            --border: #dadfd8;
+            --border-strong: #c3cac1;
+            --text: #1f2a2e;
+            --text-muted: #62706f;
+            --accent: #3d7a58;
+            --accent-strong: #2c5c41;
+            --accent-soft: #e5efe8;
+            --accent-ring: rgba(61, 122, 88, 0.18);
+            --danger: #b0473d;
+            --danger-soft: #f6e1de;
+            --warn: #8a6214;
+            --warn-soft: #fbf4e2;
+            --warn-border: #ecd9a8;
+            --added-bg: #d9ecdf;
+            --added-fg: #1e5534;
+            --removed-bg: #f5dcd8;
+            --removed-fg: #86291f;
+            --preview-bg: #363636;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #232728; min-height: 100vh; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
-        .header { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 30px; text-align: center; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--page); color: var(--text); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: var(--surface); border-radius: 15px; box-shadow: 0 20px 40px rgba(0,0,0,0.25); overflow: hidden; }
+        .header { background: linear-gradient(135deg, var(--header) 0%, var(--header-2) 100%); color: #f3f5f2; padding: 30px; text-align: center; }
         .header h1 { font-size: 2.5rem; margin-bottom: 10px; font-weight: 300; }
         .header p { opacity: 0.9; font-size: 1.1rem; }
-        .controls { padding: 20px 30px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
-        .controls-bottom { margin-top: 20px; border: 1px solid #e9ecef; border-radius: 12px; }
+        .controls { padding: 20px 30px; background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .controls-bottom { margin-top: 20px; border: 1px solid var(--border); border-radius: 12px; }
         .control-group { display: flex; align-items: center; gap: 15px; }
-        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn-primary { background: linear-gradient(135deg, #5d8764 0%, #2f522a 100%); color: white; }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-success { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; }
-        .btn-danger { background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%); color: white; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s ease; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); box-shadow: 0 4px 12px var(--accent-ring); }
+        .btn-secondary { background: var(--surface-3); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover:not(:disabled) { background: var(--border); }
+        .btn-success { background: var(--accent); color: white; }
+        .btn-success:hover:not(:disabled) { background: var(--accent-strong); }
+        .btn-danger { background: var(--danger); color: white; }
         .main-content { padding: 30px; width: 100%; }
-        .deck-selector { background: #f8f9fa; padding: 5px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #495057; }
-        .form-control { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-        .form-control:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+        .deck-selector { display: flex; flex-direction: column; gap: 15px; }
+        .settings-row { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+        .settings-row .grow { flex: 1; min-width: 200px; }
+        .form-group { margin-bottom: 0; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text); }
+        .form-control { width: 100%; padding: 12px; border: 1px solid var(--border-strong); border-radius: 8px; font-size: 14px; background: var(--surface); color: var(--text); }
+        .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+        .form-control:disabled { background: var(--surface-3); cursor: not-allowed; }
+        .check-label { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); cursor: pointer; height: 45px; white-space: nowrap; }
+        .check-label input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+        .card-scope { display: flex; align-items: stretch; flex: 1; min-width: 300px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+        .card-scope-option { padding: 12px 14px; transition: opacity 0.2s ease; }
+        .card-scope-option.batch { width: 150px; flex-shrink: 0; }
+        .card-scope-option.words { flex: 1; min-width: 0; }
+        .card-scope-option.is-inactive { opacity: 0.4; }
+        .card-scope-or { display: flex; align-items: center; justify-content: center; padding: 0 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; position: relative; }
+        .card-scope-or::before { content: ''; position: absolute; top: 12px; bottom: 12px; left: 50%; border-left: 1px solid var(--border); }
+        .card-scope-or span { position: relative; background: var(--surface-2); padding: 4px 0; }
+        .field-hint { display: block; margin-top: 6px; font-size: 12px; color: var(--text-muted); min-height: 1em; }
         .status-indicator { padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-        .status-connected { background: #d4edda; color: #155724; }
-        .status-disconnected { background: #f8d7da; color: #721c24; }
-        .processing { display: none; text-align: center; padding: 40px; }
-        .processing-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        .status-connected { background: var(--accent-soft); color: var(--accent-strong); }
+        .status-disconnected { background: var(--danger-soft); color: var(--danger); }
+        .processing { display: none; text-align: center; padding: 40px; color: var(--text-muted); }
+        .processing-spinner { width: 40px; height: 40px; border: 4px solid var(--surface-3); border-top: 4px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .card { background: white; border: 1px solid #e9ecef; border-radius: 12px; margin-bottom: 20px; overflow: hidden; transition: all 0.3s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: relative; }
-        .card:hover { box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
-        .card.selected { border-color: #667eea; box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2); }
-        .card-header { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 8px; border-bottom: 1px solid #e9ecef; display: flex; align-items: center; justify-content: space-between; }
-        .card-title { font-size: 1.2rem; font-weight: 600; color: #2c3e50; display: flex; align-items: center; gap: 15px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; transition: all 0.2s ease; box-shadow: 0 2px 10px rgba(0,0,0,0.04); position: relative; }
+        .card:hover { box-shadow: 0 5px 20px rgba(0,0,0,0.08); }
+        .card.selected { border-color: var(--accent); box-shadow: 0 5px 20px var(--accent-ring); }
+        .card-header { background: var(--surface-2); padding: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .card-title { font-size: 1.2rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 15px; }
+        .new-badge { padding: 2px 10px; border-radius: 20px; background: var(--accent-soft); color: var(--accent-strong); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
         .checkbox-wrapper { display: flex; align-items: center; gap: 10px; }
-        .custom-checkbox { width: 20px; height: 20px; border: 2px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; }
-        .custom-checkbox.checked { background: #667eea; border-color: #667eea; color: white; }
+        .custom-checkbox { width: 20px; height: 20px; border: 2px solid var(--border-strong); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; }
+        .custom-checkbox.checked { background: var(--accent); border-color: var(--accent); color: white; }
         .card-body { padding: 0; }
-        .field-group { border-bottom: 1px solid #f1f3f4; padding: 5px; }
+        .field-group { border-bottom: 1px solid var(--surface-3); padding: 5px; }
         .field-group:last-child { border-bottom: none; }
-        .field-label { font-weight: 600; color: #495057; margin-bottom: 10px; display: block; }
+        .field-label { font-weight: 600; color: var(--text); margin-bottom: 10px; display: block; }
         .field-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .field-section { background: #f8f9fa; border-radius: 8px; padding: 5px; }
-        .field-section h4 { color: #6c757d; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .field-section { background: var(--surface-2); border-radius: 8px; padding: 5px; }
+        .field-section h4 { color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
         .field-content { overflow-y: auto; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; line-height: 1.5; word-break: break-word; }
-        .field-input { width: 100%; min-height: 220px; padding: 5px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; transition: border-color 0.3s ease; }
-        .field-input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-        .field-input-front { width: 100%; min-height: 40px; padding: 5px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; transition: border-color 0.3s ease; }
-        .field-input-front:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-        .field-input-back { width: 100%; min-height: 110px; padding: 5px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; transition: border-color 0.3s ease; }
-        .field-input-back:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-        .changes-list { background: #e8f4f8; border-left: 4px solid #17a2b8; padding: 5px; padding-left: 25px; margin-top: 15px; border-radius: 0 8px 8px 0; }
-        .stats { display: flex; gap: 20px; align-items: center; font-weight: 500; color: #495057; }
+        .field-input, .field-input-front, .field-input-back { width: 100%; padding: 5px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical; transition: border-color 0.2s ease; color: var(--text); }
+        .field-input:focus, .field-input-front:focus, .field-input-back:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+        .changes-list { background: var(--accent-soft); border-left: 4px solid var(--accent); padding: 5px; padding-left: 25px; margin-top: 15px; border-radius: 0 8px 8px 0; }
+        .stats { display: flex; gap: 20px; align-items: center; font-weight: 500; color: var(--text); }
         .stat-item { display: flex; align-items: center; gap: 8px; }
-        .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
         .diff-container { font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; line-height: 1.5; }
-        .diff-split { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; /* max-height: 300px; */ }
-        .diff-left, .diff-right { background: #f8f9fa; display: flex; flex-direction: column; min-height: 0; }
-        .diff-header { background: #e9ecef; padding: 5px; font-weight: 600; font-size: 12px; color: #495057; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+        .diff-split { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+        .diff-left, .diff-right { background: var(--surface-2); display: flex; flex-direction: column; min-height: 0; }
+        .diff-header { background: var(--surface-3); padding: 5px; font-weight: 600; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
         .diff-content { padding: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; flex: 1; }
-        .diff-added { background-color: #d4edda; color: #155724; text-decoration: none; padding: 2px 4px; border-radius: 2px; }
-        .diff-removed { background-color: #f8d7da; color: #721c24; text-decoration: line-through; padding: 2px 4px; border-radius: 2px; }
-        .diff-unchanged { color: #6c757d; }
+        .diff-added { background-color: var(--added-bg); color: var(--added-fg); text-decoration: none; padding: 2px 4px; border-radius: 2px; }
+        .diff-removed { background-color: var(--removed-bg); color: var(--removed-fg); text-decoration: line-through; padding: 2px 4px; border-radius: 2px; }
+        .diff-unchanged { color: var(--text-muted); }
         @media (max-width: 768px) { .diff-split { grid-template-columns: 1fr; } .diff-header { text-align: center; } }
-        .field-preview { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-top: 10px; }
-        .field-preview h4 { color: #495057; font-size: 0.9rem; margin-bottom: 10px; }
-        .preview-content { font-size: 14px; line-height: 1.5; color: white; background-color: #363636; padding: 10px; border-radius: 4px; }
-        .field-tabs { border-bottom: 1px solid #ddd; display: flex; background: #f8f9fa; border-radius: 8px 8px 0 0; }
-        .field-tab { padding: 8px 16px; cursor: pointer; border: none; background: none; color: #6c757d; font-size: 0.85rem; font-weight: 500; transition: all 0.3s ease; flex: 1; text-align: center; }
+        .field-preview { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 10px; }
+        .field-preview h4 { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 10px; }
+        .preview-content { font-size: 14px; line-height: 1.5; color: #F2FFFF; background-color: var(--preview-bg); padding: 10px; border-radius: 4px; }
+        .preview-content[contenteditable="true"] { cursor: text; min-height: 60px; }
+        .preview-content[contenteditable="true"]:focus { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+        .preview-hint { color: var(--text-muted); font-weight: normal; font-size: 0.8rem; }
+        .preview-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .preview-header h4 { margin-bottom: 0; }
+        .preview-tools { margin-left: auto; display: flex; gap: 6px; }
+        .btn-color { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--surface-3); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+        .btn-color:hover { border-color: var(--accent); }
+        .btn-color .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong); }
+        .field-tabs { border-bottom: 1px solid var(--border); display: flex; background: var(--surface-2); border-radius: 8px 8px 0 0; }
+        .field-tab { padding: 8px 16px; cursor: pointer; border: none; background: none; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease; flex: 1; text-align: center; }
         .field-tab:first-child { border-radius: 8px 0 0 0; }
         .field-tab:last-child { border-radius: 0 8px 0 0; }
-        .field-tab.active { background: white; color: #495057; border-bottom: 2px solid #667eea; }
-        .field-tab:hover:not(.active) { background: #e9ecef; }
+        .field-tab.active { background: var(--surface); color: var(--text); border-bottom: 2px solid var(--accent); }
+        .field-tab:hover:not(.active) { background: var(--surface-3); }
         .tab-content { display: none; padding: 5px; }
         .tab-content.active { display: block; }
-        .field-section-tabbed { background: #f8f9fa; border-radius: 0 0 8px 8px; border: 1px solid #ddd; }
-        .reference-links { background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-        .reference-links h4 { color: #495057; font-size: 0.9rem; margin-bottom: 0; }
-        .reference-links a { display: inline-block; padding: 6px 12px; background: #e9ecef; color: #495057; text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: all 0.3s ease; }
-        .reference-links a:hover { background: #667eea; color: white; transform: translateY(-1px); }
-        .btn-toggle-retry { margin-left: auto; padding: 6px 12px; background: #e9ecef; color: #495057; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px; }
-        .btn-toggle-retry:hover { background: #667eea; color: white; transform: translateY(-1px); }
-        .btn-toggle-retry.active { background: #667eea; color: white; }
-        .btn-toggle-retry .arrow { display: inline-block; transition: transform 0.3s ease; font-size: 0.7rem; }
+        .field-section-tabbed { background: var(--surface-2); border-radius: 0 0 8px 8px; border: 1px solid var(--border); }
+        .reference-links { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .reference-links h4 { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0; }
+        .reference-links a { display: inline-block; padding: 6px 12px; background: var(--surface-3); color: var(--text); text-decoration: none; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s ease; }
+        .reference-links a:hover { background: var(--accent); color: white; transform: translateY(-1px); }
+        .btn-toggle-retry { margin-left: auto; padding: 6px 12px; background: var(--surface-3); color: var(--text); border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-toggle-retry:hover, .btn-toggle-retry.active { background: var(--accent); color: white; }
+        .btn-toggle-retry:hover { transform: translateY(-1px); }
+        .btn-toggle-retry .arrow { display: inline-block; transition: transform 0.2s ease; font-size: 0.7rem; }
         .btn-toggle-retry.active .arrow { transform: rotate(90deg); }
         @media (max-width: 768px) { .field-comparison { grid-template-columns: 1fr; } }
-        .retry-section { background: #f0f4ff; border-top: 1px solid #ddd; padding: 12px 15px; display: none; gap: 10px; align-items: flex-end; }
+        .retry-section { background: var(--accent-soft); border-top: 1px solid var(--border); padding: 12px 15px; display: none; gap: 10px; align-items: flex-end; }
         .retry-section.visible { display: flex; }
-        .retry-section textarea { flex: 1; min-height: 36px; max-height: 120px; padding: 8px; border: 1px solid #c5cae9; border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; }
-        .retry-section textarea:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
-        .retry-section .btn-retry { padding: 8px 18px; white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.3s ease; }
-        .retry-section .btn-retry:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4); }
-        .retry-section .btn-retry:disabled { opacity: 0.6; cursor: not-allowed; }
+        .retry-section textarea { flex: 1; min-height: 36px; max-height: 120px; padding: 8px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; }
+        .retry-section textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+        .retry-section .btn-retry { padding: 8px 18px; white-space: nowrap; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s ease; }
+        .retry-section .btn-retry:hover:not(:disabled) { background: var(--accent-strong); transform: translateY(-1px); box-shadow: 0 3px 10px var(--accent-ring); }
+        .retry-section .btn-retry:disabled { opacity: 0.5; cursor: not-allowed; }
         .card-loading-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; border-radius: 12px; }
-        .card-loading-overlay .processing-spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
-        .card-loading-overlay p { color: #495057; font-size: 14px; font-weight: 500; }
-        .token-usage-footer { margin-top: 24px; padding: 12px 16px; border: 1px solid #d9dee3; border-radius: 10px; background: #f8f9fb; color: #334155; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+        .card-loading-overlay .processing-spinner { width: 30px; height: 30px; border: 3px solid var(--surface-3); border-top: 3px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        .card-loading-overlay p { color: var(--text); font-size: 14px; font-weight: 500; }
+        .token-usage-footer { margin-top: 24px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
         .token-usage-group { display: flex; gap: 8px; align-items: center; }
-        .token-usage-label { font-weight: 600; color: #475569; }
+        .token-usage-model { margin-left: auto; }
+        .token-usage-label { font-weight: 600; color: var(--text-muted); }
         .token-usage-values { font-family: 'Consolas', 'Monaco', monospace; }
     </style>
 </head>
@@ -737,7 +786,6 @@ class WebServer(BaseHTTPRequestHandler):
             <h1>Anki Card Fixer</h1>
         </div>
 
-        <div class="controls" id="mainControls">
         <div class="controls" id="mainControls">
             <div class="control-group">
                 <div class="status-indicator" id="statusIndicator">Connecting...</div>
@@ -754,37 +802,33 @@ class WebServer(BaseHTTPRequestHandler):
 
         <div class="main-content">
             <div class="deck-selector" id="deckSelector">
-                <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
-                    <div class="form-group">
+                <div class="settings-row">
+                    <div class="form-group grow">
                         <label for="deckSelect">Select Deck:</label>
                         <select id="deckSelect" class="form-control"></select>
                     </div>
+                    <label class="check-label"><input type="checkbox" id="createBackup"> Create backup</label>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr; gap: 15px; border: 1px solid #ddd; border-radius: 12px; padding: 10px; margin-top: 15px; background-color: #deeffd;">
-                    <div class="form-group">
-                        <label for="batchSize">Batch Size:</label>
-                        <input type="number" id="batchSize" class="form-control" value="10" min="1" max="500">
+                <div class="settings-row">
+                    <div class="card-scope">
+                        <div class="card-scope-option batch" id="batchSizeOption">
+                            <div class="form-group">
+                                <label for="batchSize">Batch size:</label>
+                                <input type="number" id="batchSize" class="form-control" value="10" min="1" max="500">
+                            </div>
+                        </div>
+                        <div class="card-scope-or"><span>or</span></div>
+                        <div class="card-scope-option words">
+                            <div class="form-group">
+                                <label for="wordList">Word list (comma-separated):</label>
+                                <input type="text" id="wordList" class="form-control" oninput="updateBatchSizeState()">
+                            </div>
+                            <span class="field-hint">All listed words are processed in a single batch</span>
+                        </div>
                     </div>
+                    <label class="check-label" style="align-self: center;"><input type="checkbox" id="flaggedOnly"> Flagged only</label>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border: 1px solid #ddd; border-radius: 12px; padding: 10px; margin-top: 15px;     background-color: #f5edeb;">
-                    <div class="form-group">
-                        <label for="wordList">Word list (comma-separated):</label>
-                        <input type="text" id="wordList" class="form-control">
-                    </div>
-                    <div class="form-group">
-                        <label for="flaggedOnly">Flagged only:</label>
-                        <input type="checkbox" id="flaggedOnly">
-                    </div>
-                    <div style="display: flex; align-items: center;">
-                        <label><input type="checkbox" id="createBackup"> Create backup</label>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px;">
-                    <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button class="btn btn-primary" onclick="processCards()" id="processBtn" style="width: 100%;">Fix Cards</button>
-                    </div>
-                </div>
+                <button class="btn btn-primary" onclick="processCards()" id="processBtn" style="width: 100%;">Fix Cards</button>
             </div>
 
             <div class="processing" id="processing">
@@ -806,13 +850,13 @@ class WebServer(BaseHTTPRequestHandler):
             </div>
 
             <div class="skipped-cards-warning" id="skippedCardsWarning" style="display: none;">
-                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; margin: 20px 0; padding: 20px;">
+                <div style="background: var(--warn-soft); border: 1px solid var(--warn-border); border-radius: 8px; margin: 20px 0; padding: 20px;">
                     <div style="display: flex; align-items: center; margin-bottom: 15px;">
                         <span style="font-size: 1.5rem; margin-right: 10px;">⚠️</span>
-                        <h3 style="margin: 0; color: #856404;">Skipped Cards Warning</h3>
+                        <h3 style="margin: 0; color: var(--warn);">Skipped Cards Warning</h3>
                     </div>
-                    <p style="margin: 0 0 15px 0; color: #856404;">Some cards were skipped during processing. Please review the details below:</p>
-                    <div id="skippedCardsList" style="background: #fff; border: 1px solid #ffeaa7; border-radius: 6px; padding: 15px;">
+                    <p style="margin: 0 0 15px 0; color: var(--warn);">Some cards were skipped during processing. Please review the details below:</p>
+                    <div id="skippedCardsList" style="background: #fff; border: 1px solid var(--warn-border); border-radius: 6px; padding: 15px;">
                         <!-- Skipped cards will be listed here -->
                     </div>
                 </div>
@@ -825,12 +869,12 @@ class WebServer(BaseHTTPRequestHandler):
             </div>
 
             <div class="debug-section" id="debugSection" style="display: none; margin-top: 30px;">
-                <div class="debug-header" onclick="toggleDebugOutput()" style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px 8px 0 0; padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="margin: 0; color: #495057;">🔍 Raw Model Output (Debug)</h3>
-                    <span id="debugToggle" style="color: #6c757d;">▼ Show</span>
+                <div class="debug-header" onclick="toggleDebugOutput()" style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px 8px 0 0; padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; color: var(--text);">🔍 Raw Model Output (Debug)</h3>
+                    <span id="debugToggle" style="color: var(--text-muted);">▼ Show</span>
                 </div>
-                <div class="debug-content" id="debugContent" style="display: none; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px; padding: 20px; background: #f8f9fa;">
-                    <pre id="rawClaudeOutput" style="background: white; border: 1px solid #ddd; border-radius: 4px; padding: 15px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; margin: 0;"></pre>
+                <div class="debug-content" id="debugContent" style="display: none; border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 20px; background: var(--surface-2);">
+                    <pre id="rawClaudeOutput" style="background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 15px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; margin: 0;"></pre>
                 </div>
             </div>
 
@@ -842,6 +886,10 @@ class WebServer(BaseHTTPRequestHandler):
                 <div class="token-usage-group">
                     <span class="token-usage-label">Session total:</span>
                     <span class="token-usage-values">In <span id="sessionInputTokens">0</span> / Out <span id="sessionOutputTokens">0</span></span>
+                </div>
+                <div class="token-usage-group token-usage-model">
+                    <span class="token-usage-label">Model:</span>
+                    <span class="token-usage-values">__MODEL_LABEL__</span>
                 </div>
             </div>
         </div>
@@ -860,10 +908,18 @@ class WebServer(BaseHTTPRequestHandler):
         };
 
         document.addEventListener('DOMContentLoaded', function() {
+            updateBatchSizeState();
             checkServerStatus();
             loadDecks();
             window.addEventListener('beforeunload', handleBeforeUnload);
         });
+
+        // Batch size is ignored when a word list is given, so dim it to make that obvious
+        function updateBatchSizeState() {
+            const hasWords = document.getElementById('wordList').value.trim() !== '';
+            document.getElementById('batchSizeOption').classList.toggle('is-inactive', hasWords);
+            document.getElementById('batchSize').disabled = hasWords;
+        }
 
         async function checkServerStatus() {
             try {
@@ -1091,7 +1147,7 @@ class WebServer(BaseHTTPRequestHandler):
 
         function hideProcessing() {
             document.getElementById('processing').style.display = 'none';
-            document.getElementById('deckSelector').style.display = 'block';
+            document.getElementById('deckSelector').style.display = '';
         }
 
         function showResults() {
@@ -1171,7 +1227,7 @@ class WebServer(BaseHTTPRequestHandler):
             
             skippedCards.forEach((skippedCard, index) => {
                 const skippedItem = document.createElement('div');
-                skippedItem.style.cssText = 'margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #ffeaa7;';
+                skippedItem.style.cssText = 'margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--warn-border);';
                 
                 if (index === skippedCards.length - 1) {
                     skippedItem.style.borderBottom = 'none';
@@ -1197,8 +1253,8 @@ class WebServer(BaseHTTPRequestHandler):
                     <div style="display: flex; align-items: flex-start; margin-bottom: 8px;">
                         <span style="font-size: 1.2rem; margin-right: 8px; margin-top: 2px;">${icon}</span>
                         <div style="flex: 1;">
-                            <strong style="color: #856404;">${title}</strong>
-                            <div style="color: #856404; font-size: 0.9rem; margin-top: 4px;">${skippedCard.details}</div>
+                            <strong style="color: var(--warn);">${title}</strong>
+                            <div style="color: var(--warn); font-size: 0.9rem; margin-top: 4px;">${skippedCard.details}</div>
                         </div>
                     </div>
                 `;
@@ -1227,6 +1283,7 @@ class WebServer(BaseHTTPRequestHandler):
                             </div>
                         </div>
                         Card ${index + 1}: ${getCardTitle(card)}
+                        ${isNewCard(card) ? '<span class="new-badge">New</span>' : ''}
                     </div>
                 </div>
                 <div class="card-body">
@@ -1240,6 +1297,19 @@ class WebServer(BaseHTTPRequestHandler):
             `;
 
             return cardDiv;
+        }
+
+        function getOriginalFieldValue(card, fieldName) {
+            const valueObj = (card.original_fields || {})[fieldName];
+            return valueObj && typeof valueObj === 'object' ? valueObj.value : (valueObj || '');
+        }
+
+        // A card is new if it's a placeholder or had no Back content before
+        function isNewCard(card) {
+            if (card.is_new_card === true || (typeof card.note_id === 'string' && card.note_id.startsWith('new_'))) {
+                return true;
+            }
+            return !getOriginalFieldValue(card, 'Back').trim();
         }
 
         function getCardTitle(card) {
@@ -1278,23 +1348,38 @@ class WebServer(BaseHTTPRequestHandler):
                 // Front field is always shown as an editable textarea
                 if (fieldName === 'Front') {
                     const displayValue = hasChanges ? newValue : oldValue;
-                    const changeLabel = hasChanges ? '' : ' <span style="color: #6c757d; font-weight: normal;">(no changes)</span>';
+                    const changeLabel = hasChanges ? '' : ' <span style="color: var(--text-muted); font-weight: normal;">(no changes)</span>';
                     fieldsHtml += `
                         <div class="field-group">
                             <label class="field-label">${fieldName}${changeLabel}</label>
-                            <div class="field-section" style="border: 1px solid #ddd; border-radius: 8px;">
-                                <textarea class="field-input-front" 
+                            <div class="field-section" style="border: 1px solid var(--border); border-radius: 8px;">
+                                <textarea class="field-input-front" rows="${textareaRows(displayValue)}"
                                          onchange="updateField(${cardIndex}, '${fieldName}', this.value)"
                                          oninput="updateFieldAndRefresh(${cardIndex}, '${fieldName}', this.value, 'no-changes-${cardIndex}-${fieldName}')"
                                          placeholder="Enter ${fieldName} content...">${escapeHtml(displayValue) || ''}</textarea>
                             </div>
                         </div>
                     `;
+                } else if (!oldValue.trim() && newValue) {
+                    // Nothing to compare against - just show the new content for editing
+                    const tabId = `field-${cardIndex}-${fieldName.replace(/\\s+/g, '')}`;
+                    const inputClass = fieldName === 'Back' ? 'field-input-back' : 'field-input';
+                    fieldsHtml += `
+                        <div class="field-group">
+                            <label class="field-label">${fieldName}</label>
+                            <textarea class="${inputClass}" id="${tabId}-source" rows="${textareaRows(newValue)}"
+                                     onchange="updateField(${cardIndex}, '${fieldName}', this.value)"
+                                     oninput="updateFieldAndRefresh(${cardIndex}, '${fieldName}', this.value, '${tabId}')"
+                                     onkeydown="handleTextareaKeydown(event, ${cardIndex}, '${fieldName}', '${tabId}')"
+                                     placeholder="Enter ${fieldName} content...">${escapeHtml(newValue)}</textarea>
+                            ${renderEditablePreview(cardIndex, fieldName, tabId, newValue)}
+                        </div>
+                    `;
                 } else if (!hasChanges) {
                     fieldsHtml += `
                         <div class="field-group">
-                            <label class="field-label">${fieldName} <span style="color: #6c757d; font-weight: normal;">(no changes)</span></label>
-                            <div class="field-section" style="border: 1px solid #ddd; border-radius: 8px;">
+                            <label class="field-label">${fieldName} <span style="color: var(--text-muted); font-weight: normal;">(no changes)</span></label>
+                            <div class="field-section" style="border: 1px solid var(--border); border-radius: 8px;">
                                 <div class="field-content" style="padding: 15px;">${escapeHtml(oldValue) || '<em>Empty</em>'}</div>
                             </div>
                         </div>
@@ -1303,19 +1388,6 @@ class WebServer(BaseHTTPRequestHandler):
                     // Has changes - show full tabbed interface
                     const diffHtml = generateDiff(oldValue, newValue);
                     
-                    // Generate HTML preview for Back field and reference links
-                    let previewHtml = '';
-                    if (newValue) {
-                        // Replace newlines with <br> for HTML preview
-                        const previewValue = newValue.replace(/\\n/g, '<br>');
-                        
-                        previewHtml = `
-                            <div class="field-preview">
-                                <h4>Preview</h4>
-                                <div class="preview-content">${previewValue}</div>
-                            </div>
-                        `;
-                    }
                     
                     const tabId = `field-${cardIndex}-${fieldName.replace(/\\s+/g, '')}`;
                     
@@ -1335,15 +1407,15 @@ class WebServer(BaseHTTPRequestHandler):
                                 </div>
                                 <div id="${tabId}-diff" class="tab-content active">
                                     <div class="field-content diff-container">${diffHtml}</div>
-                                    ${previewHtml}
+                                    ${renderEditablePreview(cardIndex, fieldName, tabId, newValue, `${tabId}-diff-rendered`)}
                                 </div>
                                 <div id="${tabId}-updated" class="tab-content">
-                                    <textarea class="${inputClass}" 
+                                    <textarea class="${inputClass}" id="${tabId}-source" rows="${textareaRows(newValue)}"
                                              onchange="updateField(${cardIndex}, '${fieldName}', this.value)"
                                              oninput="updateFieldAndRefresh(${cardIndex}, '${fieldName}', this.value, '${tabId}')"
                                              onkeydown="handleTextareaKeydown(event, ${cardIndex}, '${fieldName}', '${tabId}')"
                                              placeholder="Enter ${fieldName} content...">${escapeHtml(newValue)}</textarea>
-                                    ${previewHtml}
+                                    ${renderEditablePreview(cardIndex, fieldName, tabId, newValue)}
                                 </div>
                             </div>
                         </div>
@@ -1362,12 +1434,16 @@ class WebServer(BaseHTTPRequestHandler):
                     const wiktionaryUrl = `https://sv.wiktionary.org/wiki/${encodeURIComponent(swedishWord)}`;
                     const reversoUrl = `https://context.reverso.net/översättning/svenska-engelska/${encodeURIComponent(swedishWord)}`;
                     const synonymerUrl = `https://www.synonymer.se/sv-syn/${encodeURIComponent(swedishWord)}`;
+                    const forvoUrl = `https://forvo.com/word/${encodeURIComponent(swedishWord)}/#sv`;
+                    const googleImagesUrl = `https://www.google.com/search?udm=2&q=${encodeURIComponent(swedishWord)}`;
 
                     referencesHtml = `
                         <div class="reference-links">
                             <a href="${wiktionaryUrl}" target="_blank" rel="noopener">📚 Wiktionary</a>
                             <a href="${reversoUrl}" target="_blank" rel="noopener">🔄 Reverso Context</a>
                             <a href="${synonymerUrl}" target="_blank" rel="noopener">🔣 Synonymer</a>
+                            <a href="${forvoUrl}" target="_blank" rel="noopener">🔊 Forvo</a>
+                            <a href="${googleImagesUrl}" target="_blank" rel="noopener">🖼️ Google Images</a>
                             <button class="btn-toggle-retry" onclick="toggleRetry(${cardIndex})" id="toggle-retry-btn-${cardIndex}">Regenerate <span class="arrow">&#9654;</span></button>
                         </div>
                     `;
@@ -1441,24 +1517,158 @@ class WebServer(BaseHTTPRequestHandler):
             const oldValueObj = originalFields[fieldName];
             const oldValue = oldValueObj && typeof oldValueObj === 'object' ? oldValueObj.value : (oldValueObj || '');
             
-            // Update diff view
-            const diffContainer = document.getElementById(`${tabId}-diff`).querySelector('.field-content');
+            // Update diff view (fields shown without tabs have none)
+            const diffTab = document.getElementById(`${tabId}-diff`);
+            const diffContainer = diffTab && diffTab.querySelector('.field-content');
             if (diffContainer) {
                 diffContainer.innerHTML = generateDiff(oldValue, newValue);
             }
             
-            // Update HTML preview if this is the Back field
-            if (fieldName === 'Back' && newValue) {
-                const previewValue = newValue.replace(/\\n/g, '<br>');
-                const previewContainer = document.querySelector(`#${tabId}-updated .preview-content`);
-                if (previewContainer) {
-                    previewContainer.innerHTML = previewValue;
+            // Update previews, except the one being typed into so its caret doesn't jump
+            const previews = [
+                document.getElementById(`${tabId}-rendered`),
+                document.getElementById(`${tabId}-diff-rendered`),
+            ];
+            previews.forEach(preview => {
+                if (preview && preview !== document.activeElement) {
+                    preview.innerHTML = sourceToPreviewHtml(newValue);
                 }
-                const previewContainer2 = document.querySelector(`#${tabId}-diff .preview-content`);
-                if (previewContainer2) {
-                    previewContainer2.innerHTML = previewValue;
+            });
+        }
+
+        // Initial text box height: one row per line of content, capped at 15
+        function textareaRows(value) {
+            const lines = (value || '').split('\\n').length;
+            return Math.min(Math.max(lines, 1), 15);
+        }
+
+        function renderEditablePreview(cardIndex, fieldName, tabId, value, previewId = `${tabId}-rendered`) {
+            return `
+                <div class="field-preview">
+                    <div class="preview-header">
+                        <h4>Preview <span class="preview-hint">(editable - Ctrl+I / Ctrl+B for formatting)</span></h4>
+                        <div class="preview-tools">
+                            <button class="btn-color" title="Colour selected text grey"
+                                    onmousedown="event.preventDefault()"
+                                    onclick="applyPreviewColor(${cardIndex}, '${fieldName}', '${tabId}', '${previewId}', '${GREY_TEXT_COLOR}')">
+                                <span class="swatch" style="background: ${GREY_TEXT_COLOR};"></span>Grey
+                            </button>
+                            <button class="btn-color" title="Reset selected text to the default colour"
+                                    onmousedown="event.preventDefault()"
+                                    onclick="applyPreviewColor(${cardIndex}, '${fieldName}', '${tabId}', '${previewId}', null)">
+                                <span class="swatch" style="background: #F2FFFF;"></span>Default
+                            </button>
+                        </div>
+                    </div>
+                    <div class="preview-content" id="${previewId}" contenteditable="true"
+                         oninput="updateFromRendered(${cardIndex}, '${fieldName}', '${tabId}', this)"
+                         onpaste="pastePlainText(event)">${sourceToPreviewHtml(value)}</div>
+                </div>
+            `;
+        }
+
+        const GREY_TEXT_COLOR = '#C2C2C2';
+
+        function isColorSpan(node) {
+            return node && node.nodeType === Node.ELEMENT_NODE && node.tagName === 'SPAN' && node.style.color;
+        }
+
+        // Replace colour spans in a fragment with their children
+        function stripColorSpans(fragment) {
+            fragment.querySelectorAll('span').forEach(span => {
+                if (isColorSpan(span)) {
+                    span.replaceWith(...span.childNodes);
                 }
+            });
+            return fragment;
+        }
+
+        function makeColorSpan(color, content) {
+            const span = document.createElement('span');
+            span.setAttribute('style', `color: ${color}`);
+            span.appendChild(content);
+            return span;
+        }
+
+        // Colour the selected text in a preview, or reset it to the default when color is null
+        function applyPreviewColor(cardIndex, fieldName, tabId, previewId, color) {
+            const preview = document.getElementById(previewId);
+            const selection = window.getSelection();
+            if (!preview || !selection.rangeCount) {
+                return;
             }
+            const range = selection.getRangeAt(0);
+            if (range.collapsed || !preview.contains(range.commonAncestorContainer)) {
+                return;
+            }
+
+            // If the selection sits inside an existing colour span, split that span
+            // so the text either side keeps its colour
+            let ancestor = range.commonAncestorContainer;
+            while (ancestor && ancestor !== preview && !isColorSpan(ancestor)) {
+                ancestor = ancestor.parentNode;
+            }
+            const selected = stripColorSpans(range.cloneContents());
+            const replacement = document.createDocumentFragment();
+
+            if (ancestor && ancestor !== preview) {
+                const before = document.createRange();
+                before.setStart(ancestor, 0);
+                before.setEnd(range.startContainer, range.startOffset);
+                const after = document.createRange();
+                after.setStart(range.endContainer, range.endOffset);
+                after.setEnd(ancestor, ancestor.childNodes.length);
+
+                const beforeContent = before.cloneContents();
+                const afterContent = after.cloneContents();
+                // Shallow clones keep the original span's attributes on each side
+                const wrapInAncestor = content => {
+                    const span = ancestor.cloneNode(false);
+                    span.appendChild(content);
+                    return span;
+                };
+                if (beforeContent.textContent) replacement.appendChild(wrapInAncestor(beforeContent));
+                replacement.appendChild(color ? makeColorSpan(color, selected) : selected);
+                if (afterContent.textContent) replacement.appendChild(wrapInAncestor(afterContent));
+                ancestor.replaceWith(replacement);
+            } else {
+                range.deleteContents();
+                range.insertNode(color ? makeColorSpan(color, selected) : selected);
+            }
+
+            selection.removeAllRanges();
+            updateFromRendered(cardIndex, fieldName, tabId, preview);
+        }
+
+        function sourceToPreviewHtml(value) {
+            return (value || '').replace(/\\n/g, '<br>');
+        }
+
+        // Convert the editable preview's DOM back to field source: browsers wrap
+        // new lines in <div>s or <br>s, which the source stores as newlines
+        function previewHtmlToSource(el) {
+            return el.innerHTML
+                .replace(/<div><br\\s*\\/?><\\/div>/gi, '\\n')
+                .replace(/<div>/gi, '\\n')
+                .replace(/<\\/div>/gi, '')
+                .replace(/<br\\s*\\/?>/gi, '\\n')
+                .replace(/&nbsp;/g, ' ');
+        }
+
+        function updateFromRendered(cardIndex, fieldName, tabId, el) {
+            const value = previewHtmlToSource(el);
+            const source = document.getElementById(`${tabId}-source`);
+            if (source) {
+                source.value = value;
+            }
+            updateFieldAndRefresh(cardIndex, fieldName, value, tabId);
+        }
+
+        // Keep pasted text from dragging in styling from other pages
+        function pastePlainText(event) {
+            event.preventDefault();
+            const text = (event.clipboardData || window.clipboardData).getData('text/plain');
+            document.execCommand('insertText', false, text);
         }
 
         function handleTextareaKeydown(event, cardIndex, fieldName, tabId) {
@@ -1717,6 +1927,7 @@ class WebServer(BaseHTTPRequestHandler):
     </script>
 </body>
 </html>"""
+        return html.replace("__MODEL_LABEL__", f"{MODEL_NAME} ({MODEL_EFFORT} effort)")
 
 
 def start_web_server(fixer, port: int = 8080, offline_updates_data=None):
@@ -1904,6 +2115,7 @@ class SwedishCardProcessor:
             with self.client.messages.stream(
                 model=MODEL_NAME,
                 max_tokens=MAX_RESPONSE_TOKENS,
+                output_config={"effort": MODEL_EFFORT},
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             ) as stream:
