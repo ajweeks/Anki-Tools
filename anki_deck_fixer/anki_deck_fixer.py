@@ -37,7 +37,7 @@ import webbrowser
 from urllib.parse import urlparse
 import traceback
 
-MODEL_NAME = "claude-opus-5-5"
+MODEL_NAME = "claude-sonnet-5-5"
 MODEL_EFFORT = "medium"
 # Headroom for a full batch of long definitions plus the model's thinking tokens
 MAX_RESPONSE_TOKENS = 32000
